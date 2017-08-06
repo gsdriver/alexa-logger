@@ -65,6 +65,29 @@ module.exports = {
           fs.writeFile(resultFile, text, callback);
         }
       });
+    } else if (options.s3) {
+      // Bucket is required - other fields are optional
+      if (!options.s3.bucket) {
+        if (callback) {
+          process.nextTick(() => {
+            callback('Missing parameters');
+          });
+        }
+        return;
+      }
+
+      // Default to us-east-1
+      AWS.config.update({region: (options.s3.region) ? options.s3.region : 'us-east-1'});
+      readS3Files(options.s3.bucket, options.s3.prefix, (err, results) => {
+        if (err) {
+          if (callback) {
+            callback(err);
+          }
+        } else {
+          const text = processLogs(results);
+          fs.writeFile(resultFile, text, callback);
+        }
+      });
     } else {
       // Only supported modes for now
       if (callback) {
@@ -102,6 +125,81 @@ function readFiles(dirname, callback) {
         });
       });
     }
+  });
+}
+
+// Read every file from an S3 bucket
+function readS3Files(bucket, prefix, callback) {
+  const results = [];
+
+  // First get a full directory listing
+  getKeyList(bucket, prefix, (err, keyList) => {
+    if (err) {
+      callback(err);
+    } else {
+      let keysToProcess = keyList.length;
+      (function processFiles(keyList) {
+        if (keyList.length === 0) {
+          // All done!
+          return;
+        }
+
+        const key = keyList.pop();
+        const timestamp = parseInt(key.replace(prefix, '').replace('.txt', ''));
+        s3.getObject({Bucket: bucket, Key: key}, (err, data) => {
+          if (err) {
+            // Oops, just abort the whole thing
+            callback(err);
+          } else {
+            // OK, let's read this in and split into an array
+            const text = data.Body.toString('ascii');
+            const log = JSON.parse(text);
+            log.timestamp = timestamp;
+            results.push(log);
+
+            // Is that it?
+            if (--keysToProcess === 0) {
+              callback(null, results);
+            }
+          }
+        });
+
+        processFiles(keyList);
+      })(keyList);
+    }
+  });
+}
+
+function getKeyList(bucket, prefix, callback) {
+  const keyList = [];
+
+  // Loop thru to read in all keys
+  (function loop(firstRun, token) {
+    const params = {Bucket: bucket, MaxKeys: 100};
+    if (prefix) {
+      params.Prefix = prefix;
+    }
+
+    if (firstRun || token) {
+      params.ContinuationToken = token;
+
+      const listObjectPromise = s3.listObjectsV2(params).promise();
+      return listObjectPromise.then((data) => {
+        let i;
+
+        for (i = 0; i < data.Contents.length; i++) {
+          keyList.push(data.Contents[i].Key);
+        }
+        if (data.NextContinuationToken) {
+          return loop(false, data.NextContinuationToken);
+        }
+      });
+    }
+  })(true, null).then(() => {
+    // Success - now parse these into stories
+    callback(null, keyList);
+  }).catch((err) => {
+    callback(err);
   });
 }
 

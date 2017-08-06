@@ -47,8 +47,14 @@ The options structure is composed of the following fields:
 
 ```
 {
-  directory,  // If provided, logs will be read from the local filesystem
+  directory,             // If provided, logs will be read from the local filesystem
+  s3: {                  // If provided, this structure contains details about
+                         // the S3 bucket containing the logs to process
+    bucket,              // Required - the name of the S3 bucket
+    region:'us-east-1',  // The AWS region hosting the S3 bucket; default is 'us-east-1'
+    keyPrefix:'',        // The prefix for the keys to read
+  },
 }
 ```
 
-I hope you enjoy this utility module; contributions are welcome!
+I hope you find this utility module useful; contributions are welcome!
