@@ -17,24 +17,62 @@ module.exports = {
           callback('Missing bucket');
         });
       }
-    } else {
-      // Default to us-east-1
-      AWS.config.update({region: (options.region) ? options.region : 'us-east-1'});
-
-      let keyname = Date.now() + '.txt';
-      if (options.keyPrefix) {
-        keyname = options.keyPrefix + keyname;
-      }
-
-      const params = {Body: JSON.stringify({event: event, response: response}),
-        Bucket: options.bucket,
-        Key: keyname};
-      s3.putObject(params, (err, data) => {
-        if (callback) {
-          callback(err, data);
-        }
-      });
+      retur;
     }
+
+    // Default to us-east-1
+    AWS.config.update({region: (options.region) ? options.region : 'us-east-1'});
+
+    let keyname = Date.now() + '.txt';
+    if (options.keyPrefix) {
+      keyname = options.keyPrefix + keyname;
+    }
+
+    // Validate the event - must have certain minimal parameters
+    const error = validateEvent(event);
+    if (error) {
+      if (callback) {
+        process.nextTick(() => {
+          callback(error);
+        });
+      }
+      return;
+    }
+
+    const body = {};
+    body.response = response;
+    if (options.fullLog) {
+      body.event = event;
+    } else {
+      body.event = {
+        session: {
+          user: {userId: event.session.user.userId},
+          sessionId: event.session.sessionId,
+        },
+        request: {
+          type: event.request.type,
+        },
+      };
+
+      if (event.request.intent) {
+        body.event.request.intent = {};
+        if (event.request.intent.name) {
+          body.event.request.intent.name = event.request.intent.name;
+        }
+        if (event.request.intent.slots) {
+          body.event.request.intent.slots = event.request.intent.slots;
+        }
+      }
+    }
+
+    const params = {Body: JSON.stringify(body),
+      Bucket: options.bucket,
+      Key: keyname};
+    s3.putObject(params, (err, data) => {
+      if (callback) {
+        callback(err, data);
+      }
+    });
   },
   processLogs: function(options, resultFile, callback) {
     // Options structure is required
@@ -76,9 +114,14 @@ module.exports = {
         return;
       }
 
+      // Delete the output file if it exists
+      if (fs.existsSync(resultFile)) {
+        fs.unlinkSync(resultFile);
+      }
+
       // Default to us-east-1
       AWS.config.update({region: (options.s3.region) ? options.s3.region : 'us-east-1'});
-      readS3Files(options.s3.bucket, options.s3.prefix, (err, results) => {
+      readS3Files(options.s3.bucket, options.s3.keyPrefix, (err, results) => {
         if (err) {
           if (callback) {
             callback(err);
@@ -99,6 +142,31 @@ module.exports = {
   },
 };
 
+// validates that we have a proper event to log
+function validateEvent(event) {
+  if (!event.session) {
+    return 'Missing session';
+  }
+  if (!event.session.user) {
+    return 'Missing user';
+  }
+  if (!event.session.user.userId) {
+    return 'Missing userId';
+  }
+  if (!event.session.sessionId) {
+    return 'Missing sessionId';
+  }
+  if (!event.request) {
+    return 'Missing request';
+  }
+  if (!event.request.type) {
+    return 'Missing request type';
+  }
+
+  // It's valid
+  return undefined;
+}
+
 // Read every file from the content directory
 function readFiles(dirname, callback) {
   const results = [];
@@ -116,7 +184,7 @@ function readFiles(dirname, callback) {
           } else {
             // Do a little processing
             const log = JSON.parse(content);
-            log.timestamp = parseInt(filename.split('.')[0]);
+            log.timestamp = parseInt(filename.replace('.txt', ''));
             results.push(log);
             if (--fileCount === 0) {
               callback(null, results);

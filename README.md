@@ -2,7 +2,7 @@
 Utility functionality that manages request/response for Alexa utterances. This module generates a report that lets you see the interaction of your sessions grouped by user.
 
 # Usage
-The exposed functions from this library are `saveLog` which will save a request and response in a supplied AWS S3 bucket and `processLog` which will process a directory of log files for easy consumption.
+The exposed functions from this library are `saveLog` which your Alexa skill should call to save a request and response in a supplied AWS S3 bucket and `processLog` which you can call offline to process a directory of log files for easy consumption.
 
 ```
 saveLog(event, response, options, callback)
@@ -23,6 +23,8 @@ The options structure is composed of the following fields with the following def
   bucket,             // Required - the name of the S3 bucket to write to
   region:'us-east-1', // The AWS region hosting the S3 bucket; default is 'us-east-1'
   keyPrefix:'',       // The prefix for the key that will be generated in this bucket
+  fullLog:false,      // If true, the full request is logged - by default only those
+                      // elements reported on in processLogs are retained
 }
 ```
 
