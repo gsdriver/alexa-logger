@@ -17,7 +17,7 @@ module.exports = {
           callback('Missing bucket');
         });
       }
-      retur;
+      return;
     }
 
     // Default to us-east-1
@@ -60,7 +60,10 @@ module.exports = {
           body.event.request.intent.name = event.request.intent.name;
         }
         if (event.request.intent.slots) {
-          body.event.request.intent.slots = event.request.intent.slots;
+          body.processedSlots = slotsToText(event.request.intent.slots);
+        } else {
+          // Set to 0 to indicate no slots but they've been processed
+          body.processedSlots = 0;
         }
       }
     }
@@ -293,8 +296,10 @@ function processLogs(results) {
       response: (result.response) ? result.response : 'NO RESPONSE',
       timestamp: timestamp,
     };
-    if (result.event.request.intent && result.event.request.intent.slots) {
-      data.slots = result.event.request.intent.slots;
+    if (result.processedSlots !== undefined) {
+      data.slots = (result.processedSlots === 0) ? undefined : result.processedSlots;
+    } else if (result.event.request.intent && result.event.request.intent.slots) {
+      data.slots = slotsToText(result.event.request.intent.slots);
     }
 
     // We group these by user and then session ID
@@ -325,7 +330,7 @@ function processLogs(results) {
           sessions[session].utterances.forEach((utterance) => {
             text += ',,"' + utterance.intent + '","';
             if (utterance.slots) {
-              text += slotsToText(utterance.slots).replace(/"/g, '""');
+              text += utterance.slots.replace(/"/g, '""');
             }
             text += '","' + utterance.response.replace(/"/g, '""') + '"\n';
           });
