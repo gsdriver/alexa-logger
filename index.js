@@ -96,14 +96,18 @@ module.exports = {
       }
 
       // Read files and write to a CSV file
-      readFiles(options.directory, (err, results) => {
+      readFiles(options.directory, options.daterange, (err, results) => {
         if (err) {
           if (callback) {
             callback(err);
           }
         } else {
           const text = processLogs(results);
-          fs.writeFile(resultFile, text, callback);
+          fs.writeFile(resultFile, text, (err) => {
+            if (callback) {
+              callback(err, {last: results[0].timestamp});
+            }
+          });
         }
       });
     } else if (options.s3) {
@@ -124,14 +128,18 @@ module.exports = {
 
       // Default to us-east-1
       AWS.config.update({region: (options.s3.region) ? options.s3.region : 'us-east-1'});
-      readS3Files(options.s3.bucket, options.s3.keyPrefix, (err, results) => {
+      readS3Files(options.s3.bucket, options.s3.keyPrefix, options.daterange, (err, results) => {
         if (err) {
           if (callback) {
             callback(err);
           }
         } else {
           const text = processLogs(results);
-          fs.writeFile(resultFile, text, callback);
+          fs.writeFile(resultFile, text, (err) => {
+            if (callback) {
+              callback(err, {last: results[0].timestamp});
+            }
+          });
         }
       });
     } else {
@@ -171,7 +179,7 @@ function validateEvent(event) {
 }
 
 // Read every file from the content directory
-function readFiles(dirname, callback) {
+function readFiles(dirname, daterange, callback) {
   const results = [];
 
   fs.readdir(dirname, (err, filenames) => {
@@ -188,8 +196,17 @@ function readFiles(dirname, callback) {
             // Do a little processing
             const log = JSON.parse(content);
             log.timestamp = parseInt(filename.replace('.txt', ''));
-            results.push(log);
+
+            // If there is a start/end date, make sure this falls into that range
+            if (!daterange ||
+                (!((daterange.start && (log.timestamp <= daterange.start)) ||
+                  (daterange.end && (log.timestamp >= daterange.end))))) {
+              results.push(log);
+            }
+
             if (--fileCount === 0) {
+              // Sort by timestamp
+              results.sort((a, b) => b.timestamp - a.timestamp);
               callback(null, results);
             }
           }
@@ -200,7 +217,7 @@ function readFiles(dirname, callback) {
 }
 
 // Read every file from an S3 bucket
-function readS3Files(bucket, prefix, callback) {
+function readS3Files(bucket, prefix, daterange, callback) {
   const results = [];
 
   // First get a full directory listing
@@ -227,13 +244,21 @@ function readS3Files(bucket, prefix, callback) {
               const text = data.Body.toString('ascii');
               const log = JSON.parse(text);
               log.timestamp = timestamp;
-              results.push(log);
+
+              // If there is a start/end date, make sure this falls into that range
+              if (!daterange ||
+                  (!((daterange.start && (log.timestamp <= daterange.start)) ||
+                    (daterange.end && (log.timestamp >= daterange.end))))) {
+                results.push(log);
+              }
             } catch(e) {
               console.log(e.name);
             }
 
             // Is that it?
             if (--keysToProcess === 0) {
+              // Sort by timestamp
+              results.sort((a, b) => b.timestamp - a.timestamp);
               callback(null, results);
             }
           }
