@@ -220,10 +220,14 @@ function readS3Files(bucket, prefix, callback) {
             callback(err);
           } else {
             // OK, let's read this in and split into an array
-            const text = data.Body.toString('ascii');
-            const log = JSON.parse(text);
-            log.timestamp = timestamp;
-            results.push(log);
+            try {
+              const text = data.Body.toString('ascii');
+              const log = JSON.parse(text);
+              log.timestamp = timestamp;
+              results.push(log);
+            } catch(e) {
+              console.log(e.name);
+            }
 
             // Is that it?
             if (--keysToProcess === 0) {
@@ -321,12 +325,34 @@ function processLogs(results) {
           sessions[session].utterances.forEach((utterance) => {
             text += ',,"' + utterance.intent + '","';
             if (utterance.slots) {
-              text += JSON.stringify(utterance.slots).replace(/"/g, '""');
+              text += slotsToText(utterance.slots).replace(/"/g, '""');
             }
             text += '","' + utterance.response.replace(/"/g, '""') + '"\n';
           });
         }
       }
+    }
+  }
+
+  return text;
+}
+
+function slotsToText(slots) {
+  let slot;
+  const slotArray = [];
+  let text = '';
+  let i;
+
+  for (slot in slots) {
+    if (slot && slots[slot].value) {
+      slotArray.push({name: slots[slot].name, value: slots[slot].value});
+    }
+  }
+
+  for (i = 0; i < slotArray.length; i++) {
+    text += (slotArray[i].name + ':' + slotArray[i].value);
+    if (i < (slotArray.length - 1)) {
+      text += ',';
     }
   }
 
