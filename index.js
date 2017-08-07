@@ -243,7 +243,7 @@ function getKeyList(bucket, prefix, callback) {
 
   // Loop thru to read in all keys
   (function loop(firstRun, token) {
-    const params = {Bucket: bucket, MaxKeys: 100};
+    const params = {Bucket: bucket};
     if (prefix) {
       params.Prefix = prefix;
     }
