@@ -19,5 +19,9 @@
   "bugs": {
     "url": "https://github.com/gsdriver/alexa-logger/issues"
   },
+  "keywords": [
+    "alexa",
+    "logging"
+  ],
   "homepage": "https://github.com/gsdriver/alexa-logger#readme"
 }
