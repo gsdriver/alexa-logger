@@ -1,6 +1,6 @@
 {
   "name": "alexa-logger",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Parses request and response log files from Alexa",
   "main": "index.js",
   "dependencies": {
