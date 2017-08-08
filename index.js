@@ -181,12 +181,13 @@ function validateEvent(event) {
 // Read every file from the content directory
 function readFiles(dirname, daterange, callback) {
   const results = [];
+  let fileCount;
 
   fs.readdir(dirname, (err, filenames) => {
     if (err) {
       callback(err);
     } else {
-      let fileCount = filenames.length;
+      fileCount = filenames.length;
 
       filenames.forEach((filename) => {
         const timestamp = parseInt(filename.replace('.txt', ''));
@@ -195,21 +196,22 @@ function readFiles(dirname, daterange, callback) {
         if (!daterange ||
             (!((daterange.start && (timestamp <= daterange.start)) ||
               (daterange.end && (timestamp >= daterange.end))))) {
-          fs.readFile(dirname + '/' + filename, 'utf-8', (err, content) => {
-            if (err) {
-              callback(err);
-            } else {
-              // Do a little processing
-              const log = JSON.parse(content);
-              log.timestamp = this.timestamp;
-              results.push(log);
-              if (--fileCount === 0) {
-                // Sort by timestamp
-                results.sort((a, b) => b.timestamp - a.timestamp);
-                callback(null, results);
-              }
-            }
-          }.bind({timestamp: timestamp}));
+          fs.readFile(dirname + '/' + filename, 'utf-8',
+            function(err, content) {
+                if (err) {
+                  callback(err);
+                } else {
+                  // Do a little processing
+                  const log = JSON.parse(content);
+                  log.timestamp = this.timestamp;
+                  results.push(log);
+                  if (--fileCount === 0) {
+                    // Sort by timestamp
+                    results.sort((a, b) => b.timestamp - a.timestamp);
+                    callback(null, results);
+                  }
+                }
+              }.bind({timestamp: timestamp}));
         } else {
           if (--fileCount === 0) {
             // Sort by timestamp
@@ -225,13 +227,14 @@ function readFiles(dirname, daterange, callback) {
 // Read every file from an S3 bucket
 function readS3Files(bucket, prefix, daterange, callback) {
   const results = [];
+  let keysToProcess;
 
   // First get a full directory listing
   getKeyList(bucket, prefix, (err, keyList) => {
     if (err) {
       callback(err);
     } else {
-      let keysToProcess = keyList.length;
+      keysToProcess = keyList.length;
       (function processFiles(keyList) {
         if (keyList.length === 0) {
           // All done!
@@ -244,29 +247,30 @@ function readS3Files(bucket, prefix, daterange, callback) {
             (!((daterange.start && (timestamp <= daterange.start)) ||
               (daterange.end && (timestamp >= daterange.end))))) {
           // In the date range, so download from S3
-          s3.getObject({Bucket: bucket, Key: key}, (err, data) => {
-            if (err) {
-              // Oops, just abort the whole thing
-              callback(err);
-            } else {
-              // OK, let's read this in and split into an array
-              try {
-                const text = data.Body.toString('ascii');
-                const log = JSON.parse(text);
-                log.timestamp = this.timestamp;
-                results.push(log);
-              } catch(e) {
-                console.log(e.name);
-              }
+          s3.getObject({Bucket: bucket, Key: key},
+            function(err, data) {
+              if (err) {
+                // Oops, just abort the whole thing
+                callback(err);
+              } else {
+                // OK, let's read this in and split into an array
+                try {
+                  const text = data.Body.toString('ascii');
+                  const log = JSON.parse(text);
+                  log.timestamp = this.timestamp;
+                  results.push(log);
+                } catch(e) {
+                  console.log(e.name);
+                }
 
-              // Is that it?
-              if (--keysToProcess === 0) {
-                // Sort by timestamp
-                results.sort((a, b) => b.timestamp - a.timestamp);
-                callback(null, results);
+                // Is that it?
+                if (--keysToProcess === 0) {
+                  // Sort by timestamp
+                  results.sort((a, b) => b.timestamp - a.timestamp);
+                  callback(null, results);
+                }
               }
-            }
-          }.bind({timestamp: timestamp}));
+            }.bind({timestamp: timestamp}));
         } else if (--keysToProcess === 0) {
           // We're done
           results.sort((a, b) => b.timestamp - a.timestamp);
