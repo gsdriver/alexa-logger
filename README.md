@@ -19,11 +19,11 @@ The options structure is composed of the following fields with the following def
 
 ```
 {
-  bucket,             // Required - the name of the S3 bucket to write to
-  region:'us-east-1', // The AWS region hosting the S3 bucket; default is 'us-east-1'
-  keyPrefix:'',       // The prefix for the key that will be generated in this bucket
-  fullLog:false,      // If true, the full request is logged - by default only those
-                      // elements reported on in processLogs are retained
+  bucket,     // Required - the name of the S3 bucket to write to
+  region,     // AWS region hosting the S3 bucket; default is 'us-east-1'
+  keyPrefix,  // Prefix for the key that will be generated in this bucket
+  fullLog,    // If true, the full request is logged - by default
+              // only elements reported on in processLogs are retained
 }
 ```
 
@@ -47,20 +47,20 @@ The options structure is composed of the following fields:
 
 ```
 {
-  directory,             // If provided, logs will be read from the local filesystem
-  s3: {                  // If provided, this structure contains details about
-                         // the S3 bucket containing the logs to process
-    bucket,              // Required - the name of the S3 bucket
-    region:'us-east-1',  // The AWS region hosting the S3 bucket; default is 'us-east-1'
-    keyPrefix:'',        // The prefix for the keys to read
+  directory,   // If provided, logs will be read from local filesystem
+  s3: {        // If provided, this structure contains details about
+               // the S3 bucket containing the logs to process
+    bucket,    // Required - the name of the S3 bucket
+    region,    // AWS region hosting the S3 bucket; default is 'us-east-1'
+    keyPrefix, // The prefix for the keys to read
   },
-  daterange: {           // v1.1 or higher - date range of logs to retrieve
-    start,               // Starting date as a primative value - logs that have
-                         // a timestamp strictly greater than this will be returned
-                         // If absent, all logs prior to end date will be returned
-    end,                 // Ending date as a primative value - logs that have
-                         // a timestamp strictly less than this will be returned
-                         // If absent, all logs after start date will be returned
+  daterange: { // v1.1 or higher - date range of logs to retrieve
+    start,     // Starting date as a primative value - logs that have
+               // a timestamp strictly greater than this will be returned
+               // If absent, all logs prior to end date will be returned
+    end,       // Ending date as a primative value - logs that have
+               // a timestamp strictly less than this will be returned
+               // If absent, all logs after start date will be returned
   },
 }
 ```
@@ -74,10 +74,11 @@ The info structure is composed of the following fields:
 
 ```
 {
-  last,                   // The last timestamp for a logfile. Passing this in
-                          // as daterange.start will cause only new logs to be reviewed
-                          // on a subsequent call
+  last,   // The last timestamp for a logfile. Passing this
+          // in as daterange.start will cause only new logs to
+          // be reviewed on a subsequent call
 }
 ```
+
 
 I hope you find this utility module useful; contributions are welcome!
