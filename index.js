@@ -90,32 +90,8 @@ module.exports = {
 
     // In this case, we'll read from a file directory
     if (options.directory) {
-      // Delete the output file if it exists
-      if (fs.existsSync(resultFile)) {
-        fs.unlinkSync(resultFile);
-      }
-
       // Read files and write to a CSV file
-      readFiles(options.directory, options.daterange, (err, results) => {
-        if (err) {
-          if (callback) {
-            callback(err);
-          }
-        } else {
-          const text = processLogs(results);
-          if (!results || (results.length === 0)) {
-            if (callback) {
-              callback('No results');
-            }
-          } else {
-            fs.writeFile(resultFile, text, (err) => {
-              if (callback) {
-                callback(err, {last: results[0].timestamp});
-              }
-            });
-          }
-        }
-      });
+      readFiles(options.directory, options.daterange, processResults);
     } else if (options.s3) {
       // Bucket is required - other fields are optional
       if (!options.s3.bucket) {
@@ -127,39 +103,41 @@ module.exports = {
         return;
       }
 
-      // Delete the output file if it exists
-      if (fs.existsSync(resultFile)) {
-        fs.unlinkSync(resultFile);
-      }
-
       // Default to us-east-1
       AWS.config.update({region: (options.s3.region) ? options.s3.region : 'us-east-1'});
-      readS3Files(options.s3.bucket, options.s3.keyPrefix, options.daterange, (err, results) => {
-        if (err) {
-          if (callback) {
-            callback(err);
-          }
-        } else {
-          const text = processLogs(results);
-          if (!results || (results.length === 0)) {
-            if (callback) {
-             callback('No results');
-            }
-          } else {
-           fs.writeFile(resultFile, text, (err) => {
-             if (callback) {
-               callback(err, {last: results[0].timestamp});
-             }
-           });
-          }
-        }
-      });
+      readS3Files(options.s3.bucket, options.s3.keyPrefix, options.daterange, processResults);
     } else {
       // Only supported modes for now
       if (callback) {
         process.nextTick(() => {
           callback('Unsupported file access option');
         });
+      }
+    }
+
+    function processResults(err, results) {
+      // Delete the output file if it exists
+      if (fs.existsSync(resultFile)) {
+        fs.unlinkSync(resultFile);
+      }
+
+      if (err) {
+        if (callback) {
+         callback(err);
+        }
+        } else {
+        const text = processLogs(results);
+        if (!results || (results.length === 0)) {
+         if (callback) {
+           callback('No results');
+         }
+        } else {
+         fs.writeFile(resultFile, text, (err) => {
+           if (callback) {
+             callback(err, {last: results[0].timestamp});
+           }
+         });
+        }
       }
     }
   },
@@ -210,20 +188,21 @@ function readFiles(dirname, daterange, callback) {
               (daterange.end && (timestamp >= daterange.end))))) {
           fs.readFile(dirname + '/' + filename, 'utf-8',
             function(err, content) {
-                if (err) {
-                  callback(err);
-                } else {
-                  // Do a little processing
-                  const log = JSON.parse(content);
-                  log.timestamp = this.timestamp;
-                  results.push(log);
-                  if (--fileCount === 0) {
-                    // Sort by timestamp
-                    results.sort((a, b) => b.timestamp - a.timestamp);
-                    callback(null, results);
-                  }
+              if (err) {
+                callback(err);
+              } else {
+                // Do a little processing
+                const log = JSON.parse(content);
+                log.timestamp = this.timestamp;
+                results.push(log);
+                if (--fileCount === 0) {
+                  // Sort by timestamp
+                  results.sort((a, b) => b.timestamp - a.timestamp);
+                  callback(null, results);
                 }
-              }.bind({timestamp: timestamp}));
+              }
+            }.bind({timestamp: timestamp})
+          );
         } else {
           if (--fileCount === 0) {
             // Sort by timestamp
@@ -282,7 +261,8 @@ function readS3Files(bucket, prefix, daterange, callback) {
                   callback(null, results);
                 }
               }
-            }.bind({timestamp: timestamp}));
+            }.bind({timestamp: timestamp})
+          );
         } else if (--keysToProcess === 0) {
           // We're done
           results.sort((a, b) => b.timestamp - a.timestamp);

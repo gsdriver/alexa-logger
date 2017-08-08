@@ -18,13 +18,13 @@ function processResult(err, info) {
 }
 
 // No options
-//logger.processLogs(null, 'logs/summary.csv', processResult);
+//logger.processLogs(null, 'summary.csv', processResult);
 
 // Call one of these
-//logger.processLogs(options, 'logs/summary.csv', processResult);
+//logger.processLogs(options, 'summary.csv', processResult);
 
 options.daterange.start = (new Date('Sat Aug 05 2017 22:00:00 GMT-0700 (Pacific Daylight Time)')).valueOf();
-logger.processLogs(options, 'logs/summary.csv', processResult);
+logger.processLogs(options, 'summary.csv', processResult);
 
 //options.daterange.end = (new Date('Sat Aug 05 2017 22:00:00 GMT-0700 (Pacific Daylight Time)')).valueOf();
-//logger.processLogs(options, 'logs/summary.csv', processResult);
+//logger.processLogs(options, 'summary.csv', processResult);
