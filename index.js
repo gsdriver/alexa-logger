@@ -103,11 +103,17 @@ module.exports = {
           }
         } else {
           const text = processLogs(results);
-          fs.writeFile(resultFile, text, (err) => {
+          if (!results || (results.length === 0)) {
             if (callback) {
-              callback(err, {last: results[0].timestamp});
+              callback('No results');
             }
-          });
+          } else {
+            fs.writeFile(resultFile, text, (err) => {
+              if (callback) {
+                callback(err, {last: results[0].timestamp});
+              }
+            });
+          }
         }
       });
     } else if (options.s3) {
@@ -135,11 +141,17 @@ module.exports = {
           }
         } else {
           const text = processLogs(results);
-          fs.writeFile(resultFile, text, (err) => {
+          if (!results || (results.length === 0)) {
             if (callback) {
-              callback(err, {last: results[0].timestamp});
+             callback('No results');
             }
-          });
+          } else {
+           fs.writeFile(resultFile, text, (err) => {
+             if (callback) {
+               callback(err, {last: results[0].timestamp});
+             }
+           });
+          }
         }
       });
     } else {
