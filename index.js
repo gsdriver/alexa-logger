@@ -90,22 +90,8 @@ module.exports = {
 
     // In this case, we'll read from a file directory
     if (options.directory) {
-      // Delete the output file if it exists
-      if (fs.existsSync(resultFile)) {
-        fs.unlinkSync(resultFile);
-      }
-
       // Read files and write to a CSV file
-      readFiles(options.directory, (err, results) => {
-        if (err) {
-          if (callback) {
-            callback(err);
-          }
-        } else {
-          const text = processLogs(results);
-          fs.writeFile(resultFile, text, callback);
-        }
-      });
+      readFiles(options.directory, options.daterange, processResults);
     } else if (options.s3) {
       // Bucket is required - other fields are optional
       if (!options.s3.bucket) {
@@ -117,29 +103,41 @@ module.exports = {
         return;
       }
 
-      // Delete the output file if it exists
-      if (fs.existsSync(resultFile)) {
-        fs.unlinkSync(resultFile);
-      }
-
       // Default to us-east-1
       AWS.config.update({region: (options.s3.region) ? options.s3.region : 'us-east-1'});
-      readS3Files(options.s3.bucket, options.s3.keyPrefix, (err, results) => {
-        if (err) {
-          if (callback) {
-            callback(err);
-          }
-        } else {
-          const text = processLogs(results);
-          fs.writeFile(resultFile, text, callback);
-        }
-      });
+      readS3Files(options.s3.bucket, options.s3.keyPrefix, options.daterange, processResults);
     } else {
       // Only supported modes for now
       if (callback) {
         process.nextTick(() => {
           callback('Unsupported file access option');
         });
+      }
+    }
+
+    function processResults(err, results) {
+      // Delete the output file if it exists
+      if (fs.existsSync(resultFile)) {
+        fs.unlinkSync(resultFile);
+      }
+
+      if (err) {
+        if (callback) {
+         callback(err);
+        }
+        } else {
+        const text = processLogs(results);
+        if (!results || (results.length === 0)) {
+         if (callback) {
+           callback('No results');
+         }
+        } else {
+         fs.writeFile(resultFile, text, (err) => {
+           if (callback) {
+             callback(err, {last: results[0].timestamp});
+           }
+         });
+        }
       }
     }
   },
@@ -171,44 +169,63 @@ function validateEvent(event) {
 }
 
 // Read every file from the content directory
-function readFiles(dirname, callback) {
+function readFiles(dirname, daterange, callback) {
   const results = [];
+  let fileCount;
 
   fs.readdir(dirname, (err, filenames) => {
     if (err) {
       callback(err);
     } else {
-      let fileCount = filenames.length;
+      fileCount = filenames.length;
 
       filenames.forEach((filename) => {
-        fs.readFile(dirname + '/' + filename, 'utf-8', (err, content) => {
-          if (err) {
-            callback(err);
-          } else {
-            // Do a little processing
-            const log = JSON.parse(content);
-            log.timestamp = parseInt(filename.replace('.txt', ''));
-            results.push(log);
-            if (--fileCount === 0) {
-              callback(null, results);
-            }
+        const timestamp = parseInt(filename.replace('.txt', ''));
+
+        // If there is a start/end date, make sure this falls into that range
+        if (!daterange ||
+            (!((daterange.start && (timestamp <= daterange.start)) ||
+              (daterange.end && (timestamp >= daterange.end))))) {
+          fs.readFile(dirname + '/' + filename, 'utf-8',
+            function(err, content) {
+              if (err) {
+                callback(err);
+              } else {
+                // Do a little processing
+                const log = JSON.parse(content);
+                log.timestamp = this.timestamp;
+                results.push(log);
+                if (--fileCount === 0) {
+                  // Sort by timestamp
+                  results.sort((a, b) => b.timestamp - a.timestamp);
+                  callback(null, results);
+                }
+              }
+            }.bind({timestamp: timestamp})
+          );
+        } else {
+          if (--fileCount === 0) {
+            // Sort by timestamp
+            results.sort((a, b) => b.timestamp - a.timestamp);
+            callback(null, results);
           }
-        });
+        }
       });
     }
   });
 }
 
 // Read every file from an S3 bucket
-function readS3Files(bucket, prefix, callback) {
+function readS3Files(bucket, prefix, daterange, callback) {
   const results = [];
+  let keysToProcess;
 
   // First get a full directory listing
   getKeyList(bucket, prefix, (err, keyList) => {
     if (err) {
       callback(err);
     } else {
-      let keysToProcess = keyList.length;
+      keysToProcess = keyList.length;
       (function processFiles(keyList) {
         if (keyList.length === 0) {
           // All done!
@@ -217,27 +234,40 @@ function readS3Files(bucket, prefix, callback) {
 
         const key = keyList.pop();
         const timestamp = parseInt(key.replace(prefix, '').replace('.txt', ''));
-        s3.getObject({Bucket: bucket, Key: key}, (err, data) => {
-          if (err) {
-            // Oops, just abort the whole thing
-            callback(err);
-          } else {
-            // OK, let's read this in and split into an array
-            try {
-              const text = data.Body.toString('ascii');
-              const log = JSON.parse(text);
-              log.timestamp = timestamp;
-              results.push(log);
-            } catch(e) {
-              console.log(e.name);
-            }
+        if (!daterange ||
+            (!((daterange.start && (timestamp <= daterange.start)) ||
+              (daterange.end && (timestamp >= daterange.end))))) {
+          // In the date range, so download from S3
+          s3.getObject({Bucket: bucket, Key: key},
+            function(err, data) {
+              if (err) {
+                // Oops, just abort the whole thing
+                callback(err);
+              } else {
+                // OK, let's read this in and split into an array
+                try {
+                  const text = data.Body.toString('ascii');
+                  const log = JSON.parse(text);
+                  log.timestamp = this.timestamp;
+                  results.push(log);
+                } catch(e) {
+                  console.log(e.name);
+                }
 
-            // Is that it?
-            if (--keysToProcess === 0) {
-              callback(null, results);
-            }
-          }
-        });
+                // Is that it?
+                if (--keysToProcess === 0) {
+                  // Sort by timestamp
+                  results.sort((a, b) => b.timestamp - a.timestamp);
+                  callback(null, results);
+                }
+              }
+            }.bind({timestamp: timestamp})
+          );
+        } else if (--keysToProcess === 0) {
+          // We're done
+          results.sort((a, b) => b.timestamp - a.timestamp);
+          callback(null, results);
+        }
 
         processFiles(keyList);
       })(keyList);

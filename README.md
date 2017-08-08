@@ -6,7 +6,6 @@ The exposed functions from this library are `saveLog` which your Alexa skill sho
 
 ```
 saveLog(event, response, options, callback)
-
 ```
 
 The arguments to this function are:
@@ -33,7 +32,6 @@ For example, if you want to write to a 'logs' directory off a 'mydata' S3 bucket
 saveLog(event, 'Welcome to my skill', {bucket: 'mydata', keyPrefix: 'logs/'});
 
 ```
-
 processLogs(options, resultFile, callback)
 ```
 
@@ -56,6 +54,29 @@ The options structure is composed of the following fields:
     region:'us-east-1',  // The AWS region hosting the S3 bucket; default is 'us-east-1'
     keyPrefix:'',        // The prefix for the keys to read
   },
+  daterange: {           // v1.1 or higher - date range of logs to retrieve
+    start,               // Starting date as a primative value - logs that have
+                         // a timestamp strictly greater than this will be returned
+                         // If absent, all logs prior to end date will be returned
+    end,                 // Ending date as a primative value - logs that have
+                         // a timestamp strictly less than this will be returned
+                         // If absent, all logs after start date will be returned
+  },
+}
+```
+
+The callback function, if specified will be called with the following parameters:
+
+ * error - an error string, if any
+ * info - v1.1 or higher, a structure with additional information, provided when there is no error
+
+The info structure is composed of the following fields:
+
+```
+{
+  last,                   // The last timestamp for a logfile. Passing this in
+                          // as daterange.start will cause only new logs to be reviewed
+                          // on a subsequent call
 }
 ```
 
