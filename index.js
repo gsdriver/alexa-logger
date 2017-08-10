@@ -226,13 +226,7 @@ function readS3Files(bucket, prefix, daterange, callback) {
       callback(err);
     } else {
       keysToProcess = keyList.length;
-      (function processFiles(keyList) {
-        if (keyList.length === 0) {
-          // All done!
-          return;
-        }
-
-        const key = keyList.pop();
+      keyList.forEach((key) => {
         const timestamp = parseInt(key.replace(prefix, '').replace('.txt', ''));
         if (!daterange ||
             (!((daterange.start && (timestamp <= daterange.start)) ||
@@ -268,9 +262,7 @@ function readS3Files(bucket, prefix, daterange, callback) {
           results.sort((a, b) => b.timestamp - a.timestamp);
           callback(null, results);
         }
-
-        processFiles(keyList);
-      })(keyList);
+      });
     }
   });
 }
